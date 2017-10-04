@@ -1,1 +1,0 @@
-/usr/bin/c++  -g   CMakeFiles/parser_mp.dir/main.cpp.o  -o parser_mp 
