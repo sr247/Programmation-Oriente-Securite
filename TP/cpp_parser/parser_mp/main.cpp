@@ -4,16 +4,19 @@
 
 using namespace std;
 
-static int to_string(const Image &img){
-    cout << "File type:" << img.type_file << endl;
-    std::cout << "L :" << img.cols << endl;
-    cout << "H: " << img.rows << endl;
-    cout << "Shading :"<< img.pixel_type << endl;
-    return 0;
-}
+int main(int argv, char ** args) {
 
-int main() {
-//    Image img("../data/pass_file/A.mp");
-    Image img("../data/pass_file/black.mp");
+    if(argv > 2){
+        cout << "Too many arguments" << endl;
+    }
+    else {
+        Image img(args[1]);
+        img.to_string();
+        img.show_comment();
+        img.show_ascii();
+
+    }
+
+
     return 0;
 }
