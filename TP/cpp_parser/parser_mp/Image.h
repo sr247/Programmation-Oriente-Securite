@@ -12,7 +12,7 @@
 #include <iomanip>
 using namespace std;
 
-#define DEBUG
+
 typedef struct Block{
     char type;
     unsigned int total_len;
@@ -32,63 +32,61 @@ public:
         string data;
 public:
 
-    Image(const char* filename){
+    Image(const char* filename) : rows(0) , cols(0), pixel_type(-1){
         ifstream f;
         string s;
-        f.open(filename); // TODO:Ici spécifier les droits
+        f.open(filename, ios::binary); // TODO:Ici spécifier les droits
 
 //        Ouverture du fichier et chargement intégrale dans une chaine "s" puis fermeture
         if(f.is_open())
         {
-            while(!f.eof()){
-                string line;
-                getline(f, line);
-                s.append(line);
+#ifdef DEBUG
+            cout << "f.is_open()" << endl;
+#endif
+
+            while(f.tellg() < 8){
+                char c;
+                c = char(f.get());
+                s.push_back(c);
+#ifdef DEBUG
+                cout << "f.tellg() < 8" << endl;
+#endif
             }
-            f.close();
+            if(s == "Mini-PNG"){
+                magic_number = s;
+                cout << magic_number << endl;
+                while(!f.eof()){
+#ifdef DEBUG
+                    cout << "!f.eof()" << endl;
+#endif
+                    Block b;
+
+                    if(!read_bloc(b, f)){
+                        cout << "ERROR::FILE::Corrupted !" << endl;
+                        exit(-1);
+                    }
+#ifdef DEBUG
+                    cout << "Current " ;
+                    cout << "Bloc: " << b.type << endl
+                         << "total: " << b.total_len << endl
+                         << "longueur des données: " << b.content_size << endl
+                         << "contenu: " << b.content << endl;
+#endif
+                    blocks.push_back(b);
+                }
+                print_bloc_list();
+            }
+            else{
+                cout << "ERROR::FILE::Structure not match !" << endl;
+                exit(-1);
+            }
         }
         else
         {
-            cout << "Fail to open file" << endl;
-            exit(-1);
-        }
-#ifdef DEBUG
-        cout << "\"" << s << "\"" << s.length() << endl;
-#endif
-//        Récuperation du magic number et verification : si incorrect alors exit
-        magic_number = string(s.substr(0, 8).c_str());
-        cout << magic_number << endl;
-        if(magic_number == "Mini-PNG"){
-
-            // Création de blocs puis iteration dessus. La liste des blocs
-            // parcourru est sauvegardée dans vector blocks
-            unsigned int i = 8;
-            Block b;
-            b.type = s[8];
-            while(i < s.length()) {
-
-                // Si le bloc commence par H|C|D alors on procède comme la spec l'indique
-                // Sinon on ne connait pas ce bloc alors ERROR
-                if ((b.type == 'H')
-                    | (b.type == 'C')
-                    | (b.type == 'D')) {
-                    collect_len_bloc(s, i, b);
-                    collect_content_bloc(s, i, b);
-
-                } else {
-                    cout << "ERROR::FILE::Corrupted !" << endl;
-                }
-            }
-
-
-        }else
-        {
-            cout << "ERROR::FILE::Structure not match !" << endl;
+            cout << "ERROR::FILE::Fail to open file !" << endl;
             exit(-1);
         }
 
-        // On vérifie qu'on a au moins un block H dans la liste
-        // Sinon Fichier invalide
         bool has_header = false;
         for(Block b : blocks){
             has_header |= b.type == 'H';
@@ -101,114 +99,95 @@ public:
 
 private:
 
-    /**
-     * Calcul l'entête "longueur du contenu" pour chaque bloc
-     * (On s'assure dans la fonction_collect_content_bloc que sa valeur correspond
-     * à la longueur réelle du contenu qui va être lu
-     *
-     * @param s   : chaine représentant le contenu du fichier
-     * @param pos : la position courant du parser   (reference mutable ext)
-     * @param b   : le bloc courant que l'on traite (reference mutable ext)
-     */
-    void collect_len_bloc(const string s, unsigned int& pos, Block& b){
-
-        string t("Longueur du contenu ");
-
+    int read_bloc(Block& b, ifstream& f){
 #ifdef DEBUG
-        cout << "Working block " << b.type
-             << " at pos:" << pos
-             << "..." << endl;
-        t = t + s[pos] + ": ";
-        cout << t;
-        for(int k = 1; k < 5; k++){
-            cout  << hex << static_cast<int>(s[pos + k]);
+        cout << "read_bloc()" << endl;
+#endif
+        char c;
+        unsigned int total = 0;
+        c = char(f.get());
+        if(c == 'H'){
+            cout << endl << "c == H" << endl;
+            b.type = c;
+            int len_block[4]={0};
+
+            for(auto k : {0, 1, 2, 3}){
+                len_block[k] = f.get();
+                cout << len_block[k];
+                total++;
+            }
+            b.content_size = hexToInt(len_block);
+            cout << endl << "b.content_size:" << b.content_size << endl;
+
+            int htoi[b.content_size] = { 0 };
+            for(unsigned int k = 0; k < b.content_size; k++){
+                htoi[k] = f.get();
+                cout << htoi[k];
+                b.content.push_back(char(htoi[k]));
+                total++;
+            }
+            b.total_len = total;
+
+            this->cols = hexToInt(htoi, 4, 0);
+            this->rows = hexToInt(htoi, 4, 4);
+            this->pixel_type = hexToInt(htoi, 1, 8);
         }
-        cout << "Hex"<< endl;
-#endif
-        pos += 1;
-        b.content_size = hexToInt(s, pos);
-        pos += 4;
-        b.total_len = 1 + 4 + b.content_size;
-#ifdef DEBUG
-        cout  << dec << t << setw(4) << setfill('0') << b.content_size <<"Int" << endl;
-#endif
+        else if(c == 'C'){
+            cout << endl << "c == C" << endl;
+            b.type = c;
+            int len_block[4]={0};
+
+            for(auto k : {0, 1, 2, 3}){
+                len_block[k] = f.get();
+                cout << len_block[k];
+                total++;
+            }
+            b.content_size = hexToInt(len_block);
+            cout << endl << "b.content_size:" << b.content_size << endl;
+
+            for(unsigned int k = 0; k < b.content_size; k++){
+                b.content.push_back(char(f.get()));
+                total++;
+            }
+            cout << "\"" << b.content << "\"" << endl;
+            b.total_len = total;
+
+        }else if(c == 'D'){
+            cout  << endl << "c == D" << endl;
+            b.type = c;
+            int len_block[4]={0};
+
+            for(auto k : {0, 1, 2, 3}){
+                len_block[k] = f.get();
+                cout << len_block[k];
+                total++;
+            }
+            b.content_size = hexToInt(len_block);
+            cout << endl << "b.content_size:" << b.content_size << endl;
+
+            int htoi[b.content_size] = { 0 };
+            for(unsigned int k = 0; k < b.content_size; k++){
+                htoi[k] = f.get();
+                cout << htoi[k];
+                b.content.push_back(char(htoi[k]));
+                total++;
+            }
+            b.total_len = total;
+
+
+        }else{
+            cout << endl << "c == ?" << endl;
+            return 0;
+        }
+        return 1;
     }
 
-    /**
-     * Collecte le contenu du bloc courant, le stock dans l'attribut correspondant
-     * S'assure que celui ci respecte la taille collectée par collect_len_bloc.
-     *
-     * Notes: Soit k octets de contenu lu. Si k != l alors:
-     * -soit il y a un octet en moins
-     * -soit il y a un octet en trop
-     *
-     * @param s   : chaine représentant le contenu du fichier
-     * @param pos : la position courant du parser       (reference mutable ext)
-     * @param b   : le bloc courant que l'on traite     (reference mutable ext)
-     */
-    void collect_content_bloc(const string& s, unsigned int& pos, Block& b){
-
-        unsigned int l = b.content_size;
-        for(unsigned int k = 0; k < l + 1; k++){
-            unsigned int offset = pos + k;
-
-            if((s[offset] == 'H')
-               | (s[offset] == 'C')
-               | (s[offset] == 'D')
-               | (offset == s.length())){
-                if(k != l){
-                    cout << dec << "ERROR::BLOCK::CONTENT_INCOMPLETED !" << endl
-                         << s[offset] << ' ' << offset << ' ' << pos << ' '
-                         << static_cast<int>(s[offset-1])
-                         << static_cast<int>(s[offset+1])<<endl ;
-#ifdef DEBUG
-                    string ss("Content of ");
-                    ss += b.type + string(":");
-                    cout << ss << "\"" << b.content << "\"" << endl;
-#endif
-                    exit(-1);
-                }
-                if(b.type == 'H'){
-                    this->cols = hexToInt(b.content, 0);
-                    this->rows = hexToInt(b.content, 4);
-                    this->pixel_type = hexToInt(b.content, 8, 1);
-                }
-                blocks.push_back(b);
-
-#ifdef DEBUG
-                cout << "Current Block " << b.type << endl
-                     << "total len:" << b.total_len << endl
-                     << "content_size:" << b.content_size << endl
-                     << "content:"
-                     << "\""<< string(b.content) << "\"" << endl;
-#endif
-
-                if(offset < s.length()){
-#ifdef DEBUG
-                    cout << "Next bloc " << s[offset] << " at position " << pos + k << " of s" << endl;
-#endif
-                    Block next;
-                    next.type = s[offset];
-                    b = next;
-
-                }
-                pos += k;
-            }else
-            {
-                if(offset < s.length()){
-#ifdef DEBUG
-                    cout << "Collecting content loop "
-                         << pos << ' ' << k
-                         << " s[i+k]=" << hex << static_cast<int>(s[offset]) << dec << endl;
-#endif
-                    if(b.type == 'D'){
-                        this->data.push_back(s[offset]);
-                    }
-                    b.content.push_back(s[offset]);
-                }
-
-            }
-
+    void print_bloc_list(){
+        for(Block b : blocks){
+            cout << "Bloc: " << b.type << endl
+                 << "total: " << b.total_len << endl
+                 << "longueur des données: " << b.content_size << endl
+                 << "contenu: " << b.content << endl;
         }
     }
 
@@ -251,31 +230,30 @@ public:
      */
     void show_ascii(){
 
-        for(char e : data)
-            cout << setw(4) << setfill('0') << hex
-                 << static_cast<int>(e) << endl;
-
-        vector<string> bitmap = hexToBin(this->data, 0, 4);
-        for(unsigned int i = 0; i < rows; i++) {
-            for(unsigned int j = 0; j < cols; j++) {
-                cout << ' ' << bitmap[i][j] << ' ';
-            }
-            cout << endl;
-        }
+//        for(char e : data)
+//            cout << setw(4) << setfill('0') << hex
+//                 << static_cast<int>(e) << endl;
+//
+//        vector<string> bitmap = hexToBin(this->data, 0, 4);
+//        for(unsigned int i = 0; i < rows; i++) {
+//            for(unsigned int j = 0; j < cols; j++) {
+//                cout << ' ' << bitmap[i][j] << ' ';
+//            }
+//            cout << endl;
+//        }
 
     }
 
     /**
      * Convertion hexadécimal vers décimal integer
-     * @param s
-     * @param pos
-     * @param stride
+     * @param conv   : le nombre à convertir
+     * @param stride : le nombre de digit à parcourir
      * @return
      */
-    unsigned int hexToInt(const string &s, const int pos, unsigned int stride = 4){
+    unsigned int hexToInt(const int conv[], unsigned int stride = 4, unsigned int cursor = 0){
         unsigned int l = 0;
-        for(unsigned int j = 0; j < stride; j++){
-            l += static_cast<int>(s[pos+j]) * pow(16, ((stride-1)-j));
+        for(unsigned int i = 0; i < stride; i++){
+            l += (conv[cursor + i]) * pow(16, ((stride - 1) - i));
         }
         return l;
     }
@@ -291,31 +269,31 @@ public:
      * @param pos
      * @param stride
      * @return
-     */
-    vector<string> hexToBin(const string s, unsigned int pos, unsigned int stride = 4){
-
-        vector<string> bin;
-        unsigned int k = s.length();
-        unsigned int l = hexToInt(s, 0, k);
-        int a;
-
-        a = l;
-        for(unsigned int i = 0; i < cols; i++) {
-            string b;
-            for (unsigned int j = 0; j < rows; j++) {
-                a = a - int(pow(2, double(stride-j)));
-                if(a >= 0){
-                    b.push_back(' ');
-                } else
-                {
-                    b.push_back('x');
-                }
-
-            }
-            bin.push_back(b);
-        }
-        return bin;
-    }
+//     */
+//    vector<string> hexToBin(const string& s, unsigned int pos, unsigned int stride = 4){
+//
+//        vector<string> bin;
+//        unsigned int k = s.length();
+//        unsigned int l = hexToInt(s, 0, k);
+//        int a;
+//
+//        a = l;
+//        for(unsigned int i = 0; i < cols; i++) {
+//            string b;
+//            for (unsigned int j = 0; j < rows; j++) {
+//                a = a - int(pow(2, double(stride-j)));
+//                if(a >= 0){
+//                    b.push_back(' ');
+//                } else
+//                {
+//                    b.push_back('x');
+//                }
+//
+//            }
+//            bin.push_back(b);
+//        }
+//        return bin;
+//    }
 
 
     /**

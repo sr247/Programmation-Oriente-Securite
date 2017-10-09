@@ -12,8 +12,8 @@ int main(int argv, char ** args) {
     else {
         Image img(args[1]);
         img.to_string();
-        img.show_comment();
-        img.show_ascii();
+//        img.show_comment();
+//        img.show_ascii();
 
     }
 
