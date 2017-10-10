@@ -10,34 +10,59 @@
 #include <regex>
 #include <cmath>
 #include <iomanip>
+#include <bitset>
 using namespace std;
 
 
-typedef struct Block{
+class Block
+{
+public:
     unsigned char type;
     unsigned int total_len;
     unsigned int content_size;
     vector<unsigned char> content;         // Ou string... Décidé duquel est mieux
+    vector<string> bitmap;
+public:
+    Block(unsigned char t,
+          unsigned int cs, vector<unsigned char> contenu,
+          vector<string> bm = vector<string>()){
+        type = t;
+        content_size = cs;
+        content = contenu;
+        bitmap = bm;
+        total_len = 1 + 4 + content_size;
+    }
 
-}Block;
+    Block() : type(0), total_len(0), content_size(0), content(), bitmap(){}
+};
 
-
+template<std::size_t B>
+int bitset_to_long(std::bitset<B>& b) {
+    struct {int x:B;} s;
+    s.x = int(b.to_ulong());
+    return s.x;
+}
 
 class Image{
 public:
+        string file_name;
         string magic_number;
         unsigned int rows;
         unsigned int cols;
         int pixel_type;
         vector<Block> blocks;
-        vector<vector<unsigned char>> data;
+        vector<int> data;
 public:
 
+    Image() : file_name(), magic_number(), rows(0), cols(0), pixel_type(0), blocks(), data(){
+
+    }
+
     Image(const char* filename) : rows(0) , cols(0), pixel_type(-1){
+        file_name = filename;
         ifstream f;
         string s;
-        f.open(filename, ios::binary); // TODO:Ici spécifier les droits
-
+        f.open(filename, ios::binary | ios::in);
 //        Ouverture du fichier et chargement intégrale dans une chaine "s" puis fermeture
         if(f.is_open())
         {
@@ -87,21 +112,20 @@ public:
         }
 
         bool has_header = false;
-        int check_data_lenght = 0;
-        int check_effective_lenght = 0;
+        int check_data_sum = 0;
+        auto total_data_lenght = int(ceil(float(cols*rows)/8.));
         int nb_data = 0;
         for(Block b : blocks){
             has_header |= b.type == 'H';
             if(b.type == 'D'){
                 nb_data++;
-                check_data_lenght += b.content_size;
-                check_effective_lenght += b.content.size();
+                check_data_sum += b.content_size;
             }
         }
 
-        if(check_data_lenght != check_effective_lenght){
+        if(check_data_sum != total_data_lenght){
             cout << "ERROR::FILE::DATA::Lenght not uniform !" << endl;
-            cout << check_data_lenght << " " << check_effective_lenght << endl;
+            cout << check_data_sum << " " << int(ceil(float(cols*rows)/8.)) << endl;
             exit(-1);
         }
 
@@ -115,19 +139,54 @@ public:
             exit(-1);
         }
 
-//        for(Block bb : blocks){
-//            if(bb.type == 'D'){
-//                for(unsigned char c : bb.content){
-//                    vector<int> vec;
-////                    int tmp[1] =  { int(c) };
-//                    // TODO:Ici il faut concat dans data des chaînes de 8 bit qui
-//                    // correspondent à un octet de données
-//                }
-//
-//            }
-//        }
+        // ----------------------------------------------------------------------------------------
+        // ----------------------------------------------------------------------------------------
+
+        for(Block bb : blocks){
+            if(bb.type == 'D'){
+                for(unsigned char c : bb.content){
+                    // TODO: Rajouter des tabulations pour éclairer le débug
+
+                    // TODO: Choix retenu
+                    // -Soit J'utilise data comme un liste
+                    //  Et je l'affiche en sautant une ligne modulo cols
+
+                    //TODO: Supprimer les parametres inutiles des fontion lorsque modifier
+                    string s;
+                    vector<int> vec;
+                    int tmp[1] = { int(c) };
+                    vec = intToBin(tmp);
+                    for(int i : vec){
+                        data.push_back(i);
+                        s += std::to_string(i);
+                    }
+                    bb.bitmap.push_back(s);
+                }
+                cout << "bitmaps:";
+                for(string& b : bb.bitmap){
+                    cout << b << ' ';
+                }
+                cout << endl;
+            }
+        }
+
+        cout << "data:";
+        for(int val : data){
+                cout << val;
+        }
+        cout << endl;
+
+
+
+
     }
 
+
+    int save(){
+        ifstream f;
+        f.open(file_name);
+        return 1;
+    }
 private:
 
     int read_bloc(Block& b, ifstream& f){
@@ -142,25 +201,26 @@ private:
             cout << endl << "eof" << endl;
             return 1;
         }else if(c == 'H'){
-            cout << endl << "c == H" << endl;
+//            cout << endl << "c == H" << endl;
             b.type = c;
             int len_bloc[4]={0};
 
             for(auto k : {0, 1, 2, 3}){
                 len_bloc[k] = f.get();
-                cout << len_bloc[k];
+//                cout << len_bloc[k];
                 total++;
             }
             b.content_size = hexToInt(len_bloc);
-            cout << endl << "b.content_size:" << b.content_size << endl;
+//            cout << endl << "b.content_size:" << b.content_size << endl;
 
             int htoi[b.content_size] = { 0 };
             for(unsigned int k = 0; k < b.content_size; k++){
                 htoi[k] = f.get();
-                cout << htoi[k];
+//                cout << htoi[k];
                 b.content.push_back((unsigned char)(htoi[k]));
                 total++;
             }
+            cout << endl;
             b.total_len = total;
 
             this->cols = hexToInt(htoi, 4, 0);
@@ -168,48 +228,48 @@ private:
             this->pixel_type = hexToInt(htoi, 1, 8);
         }
         else if(c == 'C'){
-            cout << endl << "c == C" << endl;
+//            cout << endl << "c == C" << endl;
             b.type = c;
             int len_bloc[4] = { 0 };
 
             for(auto k : {0, 1, 2, 3}){
                 len_bloc[k] = f.get();
-                cout << len_bloc[k];
+//                cout << len_bloc[k];
                 total++;
             }
             b.content_size = hexToInt(len_bloc);
-            cout << endl << "b.content_size:" << b.content_size << endl;
+//            cout << endl << "b.content_size:" << b.content_size << endl;
 
             for(unsigned int k = 0; k < b.content_size; k++){
                 b.content.push_back((unsigned char)(f.get()));
                 total++;
             }
 
-            cout << "\"";
-            for(unsigned char c : b.content){
-               cout << c;
-            }
-            cout << "\"" << endl;
+//            cout << "\"";
+//            for(unsigned char t : b.content){
+//               cout << t;
+//            }
+//            cout << "\"" << endl;
 
             b.total_len = total;
 
         }else if(c == 'D'){
-            cout  << endl << "c == D" << endl;
+//            cout  << endl << "c == D" << endl;
             b.type = c;
             int len_bloc[4] = { 0 };
 
             for(auto k : {0, 1, 2, 3}){
                 len_bloc[k] = f.get();
-                cout << len_bloc[k];
+//                cout << len_bloc[k];
                 total++;
             }
             b.content_size = hexToInt(len_bloc);
-            cout << endl << "b.content_size:" << b.content_size << endl;
+//            cout << endl << "b.content_size:" << b.content_size << endl;
 
             int htoi[b.content_size] = { 0 };
             for(unsigned int k = 0; k < b.content_size; k++){
                 htoi[k] = f.get();
-                cout << htoi[k] << ' ';
+//                cout << htoi[k] << ' ';
                 b.content.push_back((unsigned char)(htoi[k]));
                 total++;
             }
@@ -235,6 +295,7 @@ private:
                 cout << c;
             }
             cout << endl;
+
         }
     }
 
@@ -279,19 +340,18 @@ public:
      * Question 4: En essai: Affiché le contenu de data apres l'avoir traduit en binary
      */
     void show_ascii(){
-
-//        for(char e : data)
-//            cout << setw(4) << setfill('0') << hex
-//                 << static_cast<int>(e) << endl;
-//
-//        vector<string> bitmap = hexToBin(this->data, 0, 4);
-//        for(unsigned int i = 0; i < rows; i++) {
-//            for(unsigned int j = 0; j < cols; j++) {
-//                cout << ' ' << bitmap[i][j] << ' ';
-//            }
-//            cout << endl;
-//        }
-
+        cout << "Affichage:" << endl;
+        for(unsigned int i = 0; i < cols*rows; i++){
+            if(i % cols == 0){
+                cout << endl;
+            }
+            if(data[i] == 1){
+                cout << '.';
+            }else{
+                cout << 'x';
+            }
+        }
+        cout << endl;
     }
 
     /**
@@ -309,7 +369,6 @@ public:
     }
 
 
-
     // TODO:Convertir data directement lors du parsing en chaines de bits 0;1
     /**
      * Convertir de hexadécimale vers binaire sur regroupement de 2⁴ (2^4)
@@ -320,18 +379,15 @@ public:
      * @param stride
      * @return
 //     */
-    vector<int> hexToBin(const int conv[], unsigned int stride = 4, unsigned int pos = 0, unsigned int digit = 8){
+    vector<int> intToBin(const int conv[]){
 
-        vector<int> vec;
-        int d = hexToInt(conv, 1);
-        for (unsigned int j = 0; j < digit; j++) {
-            d = d - int(pow(2, double(stride - j)));
+        vector<int> vec(8);
+        unsigned int d = hexToInt(conv, 1);
 
-            if(d >= 0) {
-                vec[j] = 0;
-            }else{
-                vec[j] = 1;
-            }
+        bitset<8> b(d);
+//        cout << "Le bitset" << ":" << b << endl;
+        for (unsigned int j = 0; j < 8; j++) {
+            vec[j] = b[(8-1)-j];
         }
         return vec;
     }
@@ -343,3 +399,29 @@ public:
     void show(){};
 };
 #endif //PARSER_MP_IMAGE_H
+
+// H(eader)   : 1 seul, au début
+// P(alette)  : 0 ou 1, Après H avant D
+// D(onnées)  : >= 1 bloc à agrégé
+// C(comment) : n'import où sauf en 1st
+
+/*
+ *                          Type(chunk)          Longueur           Contenu
+ *                           1                      l
+ *                           1                      4                  l
+ *
+ * Big Endian    2en, --> 2e1, 2e0
+ * Little Endian 2e0, 2e1 --> 2en
+ *
+ *
+ *  Contenu H
+ *   W       H        pixel
+ *   4       4          1
+ *
+ * Imposer que les nb de pixels soit mult de 8 (  très dur )
+ * Imposer que la taille des données soit minimal. et les derniers bits sont à 0 ( un peu mieux )
+ *
+ *
+ *
+ *
+ */

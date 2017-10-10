@@ -11,4 +11,6 @@ Then Run the program with ./parser_mp_ with one argmument: a .mp file
 
     make
     ./parser_mp <filename.mp>
+    
+    
   
