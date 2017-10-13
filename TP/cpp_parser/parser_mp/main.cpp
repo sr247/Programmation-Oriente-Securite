@@ -44,15 +44,26 @@ static int create(const char* filename){
     }
 
     f.write("Mini-PNG", sizeof("Mini-PNG")/sizeof(char));
-    cout << blist[0].type << endl;
-    for(char e : blist[0].content)
-        cout << e;
+//    cout << blist[0].type << endl;
+//    for(char e : blist[0].content)
+//        cout << e;
 
-    cout << endl << blist[1].type << endl;
+//    cout << endl << blist[1].type << endl;
 
     for(Block b : blist) {
+        cout << "Ecriture bloc[" << b.type << ' ' << int(b.type) << "] -> file: " << string(filename) << endl;
         f.put(b.type);
-        f.put(char(b.content_size));
+
+        vector<int> content_size_en_hexa = Image::intToHex(b.content_size, 4);
+        cout << "Sa taille: " << b.content_size << ' '
+             << content_size_en_hexa[0]
+             << content_size_en_hexa[1]
+             << content_size_en_hexa[2]
+             << content_size_en_hexa[3] << endl;
+
+        for(int d : content_size_en_hexa){
+            f.put(char(d));
+        }
 
         for (unsigned int i : b.content) {
             f.put(char(i));
@@ -72,10 +83,10 @@ int main(int argv, char ** args) {
         cout << "Arg missing" << endl;
     } else {
 // Regex pour test si le fichier est bien .mp
-        Image img(args[1]);
-        img.to_string();
-        img.show_comment();
-        img.show_ascii();
+//        Image img(args[1]);
+//        img.to_string();
+//        img.show_comment();
+//        img.show_ascii();
     }
 
     create("myFirstLetter.mp");

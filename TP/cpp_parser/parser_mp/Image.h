@@ -58,7 +58,7 @@ public:
 
     }
 
-    Image(const char* filename) : rows(0) , cols(0), pixel_type(-1){
+    Image(const char* filename) : rows(0) , cols(0), pixel_type(0){
         file_name = filename;
         ifstream f;
         string s;
@@ -276,7 +276,7 @@ private:
             b.total_len = total;
 
         }else{
-            cout << endl << "c == ?" << endl;
+            cout << endl << "c == ?:" << int(c) << endl;
             return 0;
         }
         return 1;
@@ -346,7 +346,7 @@ public:
                 cout << endl;
             }
             if(data[i] == 1){
-                cout << '.';
+                cout << ' ';
             }else{
                 cout << 'x';
             }
@@ -368,6 +368,23 @@ public:
         return l;
     }
 
+
+    static vector<int> intToHex(int a, unsigned int n = 4){
+        vector<int> b;
+//        @param
+//        a = nombre à convertir
+//        n = nombre de digit sur lequel coder
+//        Selon la spécification pour le parser, on a 4 octet pour convertir a
+//        @return
+//        vecteur<int> b = nombre a converti en hexadécimal avec n digit
+        int v;
+        for(unsigned int i = 0; i < n; i++){
+            v = int((double(a) / (pow(16, (n-1)-i))));
+            a = a % int((pow(16, (n-1)-i)));
+            b.push_back(v);
+        }
+     return b;
+    }
 
     // TODO:Convertir data directement lors du parsing en chaines de bits 0;1
     /**
